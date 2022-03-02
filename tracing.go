@@ -1,9 +1,9 @@
-package otel_tracing
+package tracing
 
 import (
 	"context"
 	"fmt"
-	"github.com/ttys3/otel-tracing/filter"
+	"github.com/ttys3/tracing/filter"
 	"go.opentelemetry.io/otel/propagation"
 	"net/http"
 	"time"
@@ -109,7 +109,7 @@ func InitOtlpTracerProvider(ctx context.Context, otelAgentAddr, service, version
 	propagator := b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader))
 	otel.SetTextMapPropagator(propagator)
 
-	tracer = tp.Tracer("github.com/ttys3/otel-tracing")
+	tracer = tp.Tracer("github.com/ttys3/tracing")
 
 	return tp, tp.Shutdown, nil
 }

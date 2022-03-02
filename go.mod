@@ -1,4 +1,4 @@
-module github.com/ttys3/otel-tracing
+module github.com/ttys3/tracing
 
 go 1.17
 

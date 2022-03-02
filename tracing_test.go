@@ -1,4 +1,4 @@
-package otel_tracing
+package tracing
 
 import (
 	"context"
