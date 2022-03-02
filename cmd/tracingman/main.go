@@ -34,12 +34,14 @@ var (
 	otelGrpcEndpoint string
 	serviceName      string
 	rootSpanName     string
+	withB3           bool
 )
 
 func main() {
 	flag.StringVar(&otelGrpcEndpoint, "e", "otel-collector.service.dc1.consul:4317", "opentelemetry collector grpc endpoint")
 	flag.StringVar(&rootSpanName, "n", "ThisIsMyRootSpanName", "root span name")
 	flag.StringVar(&serviceName, "s", "MyDemoService", "server name")
+	flag.BoolVar(&withB3, "b", false, "with b3 propagator")
 
 	flag.Parse()
 
@@ -52,30 +54,36 @@ func main() {
 		panic(err)
 	}
 
-	u := uuid.Must(uuid.NewV4())
-	traceID := strings.ReplaceAll(u.String(), "-", "")
-	// fmt.Printf("B3 traceID=%v\n", traceID)
-
-	header := make(http.Header)
-	for _, v := range []struct {
-		Key string
-		Val string
-	}{
-		{b3TraceID, traceID},
-		{b3SpanID, spanIDStr},
-		{b3Sampled, "true"},
-	} {
-		header.Set(v.Key, v.Val)
-	}
-	ctx := context.Background()
 	var sp trace.Span
-	sp = tracing.NewSpanFromB3(ctx, header)
-	if !sp.IsRecording() {
-		lgr.S().Warn("parent is not recording span, create new")
+	ctx := context.Background()
+	if withB3 {
+		lgr.S().Info("b3 propagator enabled")
+		u := uuid.Must(uuid.NewV4())
+		traceID := strings.ReplaceAll(u.String(), "-", "")
+		// fmt.Printf("B3 traceID=%v\n", traceID)
+
+		header := make(http.Header)
+		for _, v := range []struct {
+			Key string
+			Val string
+		}{
+			{b3TraceID, traceID},
+			{b3SpanID, spanIDStr},
+			{b3Sampled, "true"},
+		} {
+			header.Set(v.Key, v.Val)
+		}
+		sp = tracing.NewSpanFromB3(ctx, header)
+		if !sp.IsRecording() {
+			lgr.S().Warn("parent is not recording span, create new")
+			ctx, sp = tracing.SpanStart(ctx, rootSpanName)
+		}
+	} else {
 		ctx, sp = tracing.SpanStart(ctx, rootSpanName)
-		fmt.Printf("traceID:\n%v\n", tracing.TraceID(ctx))
 	}
 	defer sp.End()
+
+	fmt.Printf("traceID:\n%v\n", tracing.TraceID(ctx))
 
 	createTestSpan(ctx)
 	fmt.Println("done")
