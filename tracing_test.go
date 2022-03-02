@@ -26,7 +26,7 @@ func TestSpanStartNoPanic(t *testing.T) {
 func TestOtlpSpanExport(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
 	defer TracerProviderShutdown(ctx)
-	InitOtlpTracerProvider(ctx, "tempo.service.dc1.consul:4317", "otel-tracing.test.TestOtlpSpanExport", "1.0.0")
+	InitOtlpTracerProvider(ctx, WithOtelGrpcEndpoint("tempo.service.dc1.consul:4317"), WithSerivceName("otel-tracing.test.TestOtlpSpanExport"), WithServiceVersion("1.0.0"))
 
 	createTestSpan(ctx)
 }
@@ -91,7 +91,7 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	defer TracerProviderShutdown(ctx)
 
 	// otel-collector.service.dc1.consul
-	InitOtlpTracerProvider(ctx, "otel-collector.service.dc1.consul:4317", "otel-tracing.test.TestSpanFromB3PropagatorHeader", "1.0.0")
+	InitOtlpTracerProvider(ctx, WithOtelGrpcEndpoint("otel-collector.service.dc1.consul:4317"), WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"), WithServiceVersion("1.0.0"))
 
 	u := uuid.Must(uuid.NewV4())
 	traceID := strings.ReplaceAll(u.String(), "-", "")

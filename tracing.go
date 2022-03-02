@@ -26,17 +26,23 @@ var (
 	tp     *sdktrace.TracerProvider
 )
 
-// KeyValue holds a key and value pair.
-type KeyValue struct {
-	Key   string
-	Value string
+type TracingBuilder struct {
+	options *options
 }
 
-func String(k, v string) KeyValue {
-	return KeyValue{
-		Key:   k,
-		Value: v,
+func applayOptions(opts ...Option) *options {
+	options := &options{
+		otelGrpcEndpoint: "",
+		serviceName:      "no-name",
+		serviceVersion:   "0.0.0",
+		durationFilter:   false,
+		durationMin:      time.Millisecond * 200,
+		durationMax:      time.Minute,
 	}
+	for _, o := range opts {
+		o.apply(options)
+	}
+	return options
 }
 
 type TpShutdownFunc func(ctx context.Context) error
@@ -52,12 +58,14 @@ var emptyTpShutdownFunc = func(_ context.Context) error {
 }
 
 // InitOtlpTracerProvider init a tracer provider with otlp exporter with B3 propagator
-func InitOtlpTracerProvider(ctx context.Context, otelAgentAddr, service, version string, attributes ...KeyValue) (*sdktrace.TracerProvider, TpShutdownFunc, error) {
+func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.TracerProvider, TpShutdownFunc, error) {
 	otel.SetErrorHandler(&otelErrorHandler{})
+
+	opt := applayOptions(opts...)
 
 	expOptions := []otlptracegrpc.Option{
 		otlptracegrpc.WithInsecure(),
-		otlptracegrpc.WithEndpoint(otelAgentAddr),
+		otlptracegrpc.WithEndpoint(opt.otelGrpcEndpoint),
 	}
 
 	grpcConnectionTimeout := 3 * time.Second
@@ -71,14 +79,11 @@ func InitOtlpTracerProvider(ctx context.Context, otelAgentAddr, service, version
 	}
 
 	attrs := []attribute.KeyValue{
-		semconv.ServiceNameKey.String(service),
-		semconv.ServiceVersionKey.String(version),
+		semconv.ServiceNameKey.String(opt.serviceName),
+		semconv.ServiceVersionKey.String(opt.serviceVersion),
 	}
-	for _, attr := range attributes {
-		if attr.Key != "" && attr.Value != "" {
-			attrs = append(attrs, attribute.String(attr.Key, attr.Value))
-		}
-	}
+	attrs = append(attrs, opt.attributes...)
+
 	res, err := resource.New(ctx,
 		resource.WithAttributes(attrs...),
 	)
@@ -93,17 +98,21 @@ func InitOtlpTracerProvider(ctx context.Context, otelAgentAddr, service, version
 		sdktrace.WithBatchTimeout(5*time.Second),
 		sdktrace.WithMaxExportBatchSize(10),
 	)
-	// Build a SpanProcessor chain to only allow spans shorter than
-	// an minute and longer than a second to be exported with the exportSP.
-	filterDurationProcessor := filter.DurationFilter{
-		Next: batchProcessor,
-		Min:  time.Millisecond * 10,
-		Max:  time.Minute,
+
+	spanProcessor := batchProcessor
+	if opt.durationFilter {
+		// Build a SpanProcessor chain to only allow spans shorter than
+		// an minute and longer than a second to be exported with the exportSP.
+		spanProcessor = filter.DurationFilter{
+			Next: batchProcessor,
+			Min:  opt.durationMin,
+			Max:  opt.durationMax,
+		}
 	}
 
 	tp = sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(1))),
-		sdktrace.WithSpanProcessor(filterDurationProcessor),
+		sdktrace.WithSpanProcessor(spanProcessor),
 		sdktrace.WithResource(res),
 	)
 	otel.SetTracerProvider(tp)
