@@ -3,17 +3,17 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"github.com/ttys3/tracing/filter"
-	"go.opentelemetry.io/otel/propagation"
 	"net/http"
 	"time"
 
 	"github.com/ttys3/lgr"
+	"github.com/ttys3/tracing/filter"
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
@@ -21,8 +21,10 @@ import (
 )
 
 // tracer the global tracer
-var tracer trace.Tracer
-var tp *sdktrace.TracerProvider
+var (
+	tracer trace.Tracer
+	tp     *sdktrace.TracerProvider
+)
 
 // KeyValue holds a key and value pair.
 type KeyValue struct {
