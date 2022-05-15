@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -16,6 +17,14 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+func getTestOtlpEp() string {
+	ep := "tempo.service.dc1.consul:4317"
+	if tmp := os.Getenv("OTEL_ENDPOINT"); tmp != "" {
+		ep = tmp
+	}
+	return ep
+}
+
 func TestSpanStartNoPanic(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
 	defer TracerProviderShutdown(ctx)
@@ -26,22 +35,29 @@ func TestSpanStartNoPanic(t *testing.T) {
 func TestOtlpSpanExport(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
 	defer TracerProviderShutdown(ctx)
-	InitOtlpTracerProvider(ctx, WithOtelGrpcEndpoint("tempo.service.dc1.consul:4317"), WithSerivceName("otel-tracing.test.TestOtlpSpanExport"), WithServiceVersion("1.0.0"))
 
+	ep := getTestOtlpEp()
+
+	InitOtlpTracerProvider(ctx,
+		WithOtelGrpcEndpoint(ep),
+		WithSerivceName("otel-tracing.test.TestOtlpSpanExport"),
+		WithServiceVersion("1.0.0"),
+	)
 	createTestSpan(ctx)
 }
 
 func createTestSpan(ctx context.Context) {
-	ctx, span := SpanStart(ctx, "test.MySpanName")
+	ctx, span := Start(ctx, "test.MySpanName")
 	defer span.End()
-
+	log := Logger(ctx)
+	log.Info("begin func")
 	func() {
-		ctx, span := SpanStart(ctx, "test.MySubWork01")
+		ctx, span := Start(ctx, "test.MySubWork01")
 		defer span.End()
 		time.Sleep(time.Millisecond * 480)
 
 		func() {
-			_, span := SpanStart(ctx, "test.MySubSubWork02")
+			_, span := Start(ctx, "test.MySubSubWork02")
 			defer span.End()
 			time.Sleep(time.Millisecond * 120)
 		}()
@@ -91,7 +107,10 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	defer TracerProviderShutdown(ctx)
 
 	// otel-collector.service.dc1.consul
-	InitOtlpTracerProvider(ctx, WithOtelGrpcEndpoint("otel-collector.service.dc1.consul:4317"), WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"), WithServiceVersion("1.0.0"))
+	InitOtlpTracerProvider(ctx,
+		WithOtelGrpcEndpoint(getTestOtlpEp()),
+		WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"),
+		WithServiceVersion("1.0.0"))
 
 	u := uuid.Must(uuid.NewV4())
 	traceID := strings.ReplaceAll(u.String(), "-", "")
@@ -115,7 +134,7 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	sp := trace.SpanFromContext(ctx)
 	sp.SetName("SpanFromB3PropagatorHeader")
 	if !sp.IsRecording() {
-		_, sp = SpanStart(ctx, "SpanFromB3PropagatorHeader")
+		_, sp = Start(ctx, "SpanFromB3PropagatorHeader")
 	}
 
 	sp.RecordError(fmt.Errorf("oops"))

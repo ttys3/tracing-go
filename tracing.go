@@ -20,14 +20,16 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// tracer the global tracer
-var (
-	tracer trace.Tracer
-	tp     *sdktrace.TracerProvider
-)
+type TpShutdownFunc func(ctx context.Context) error
 
-type TracingBuilder struct {
-	options *options
+type otelErrorHandler struct{}
+
+func (e *otelErrorHandler) Handle(err error) {
+	lgr.S().Error("[tracing] got error", "err", err)
+}
+
+var emptyTpShutdownFunc = func(_ context.Context) error {
+	return nil
 }
 
 func applayOptions(opts ...Option) *options {
@@ -45,20 +47,8 @@ func applayOptions(opts ...Option) *options {
 	return options
 }
 
-type TpShutdownFunc func(ctx context.Context) error
-
-type otelErrorHandler struct{}
-
-func (e *otelErrorHandler) Handle(err error) {
-	lgr.S().Error("[tracing] got error", "err", err)
-}
-
-var emptyTpShutdownFunc = func(_ context.Context) error {
-	return nil
-}
-
 // InitOtlpTracerProvider init a tracer provider with otlp exporter with B3 propagator
-func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.TracerProvider, TpShutdownFunc, error) {
+func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (TpShutdownFunc, error) {
 	otel.SetErrorHandler(&otelErrorHandler{})
 
 	opt := applayOptions(opts...)
@@ -75,7 +65,7 @@ func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.Trac
 
 	traceExp, err := otlptracegrpc.New(ctx, expOptions...)
 	if err != nil {
-		return nil, emptyTpShutdownFunc, fmt.Errorf("failed to create the collector trace exporter (%w)", err)
+		return emptyTpShutdownFunc, fmt.Errorf("failed to create the collector trace exporter (%w)", err)
 	}
 
 	attrs := []attribute.KeyValue{
@@ -88,7 +78,7 @@ func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.Trac
 		resource.WithAttributes(attrs...),
 	)
 	if err != nil {
-		return nil, emptyTpShutdownFunc, fmt.Errorf("failed to create resource (%w)", err)
+		return emptyTpShutdownFunc, fmt.Errorf("failed to create resource (%w)", err)
 	}
 
 	// sdktrace.WithBatcher(traceExp,
@@ -110,7 +100,7 @@ func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.Trac
 		}
 	}
 
-	tp = sdktrace.NewTracerProvider(
+	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(1))),
 		sdktrace.WithSpanProcessor(spanProcessor),
 		sdktrace.WithResource(res),
@@ -120,48 +110,45 @@ func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (*sdktrace.Trac
 	propagator := b3.New(b3.WithInjectEncoding(b3.B3MultipleHeader))
 	otel.SetTextMapPropagator(propagator)
 
-	tracer = tp.Tracer("github.com/ttys3/tracing")
+	// tracer = tp.Tracer("github.com/ttys3/tracing")
 
-	return tp, tp.Shutdown, nil
+	return tp.Shutdown, nil
 }
 
 // InitStdoutTracerProvider is only for unit tests
-func InitStdoutTracerProvider() (*sdktrace.TracerProvider, TpShutdownFunc, error) {
+func InitStdoutTracerProvider() (TpShutdownFunc, error) {
 	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
 	if err != nil {
 		lgr.S().Fatal("new stdoutrace failed", "err", err)
-		return nil, emptyTpShutdownFunc, err
+		return emptyTpShutdownFunc, err
 	}
-	tp = sdktrace.NewTracerProvider(
+	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 		sdktrace.WithBatcher(exporter),
 	)
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	tracer = tp.Tracer("demo-stdouttrace")
+	// tracer = tp.Tracer("demo-stdouttrace")
 
-	return tp, tp.Shutdown, nil
+	return tp.Shutdown, nil
 }
 
 func TracerProviderShutdown(ctx context.Context) error {
-	if tp != nil {
+	if tp, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider); ok {
+		lgr.S().Info("shutdown otel tp")
 		return tp.Shutdown(ctx)
 	}
 	return nil
 }
 
-// SpanStart creates a span and a context.Context containing the newly-created span.
+// Start creates a span and a context.Context containing the newly-created span.
 // If the context.Context provided in `ctx` contains a Span then the newly-created
 // Span will be a child of that span, otherwise it will be a root span. This behavior
 // can be overridden by providing `WithNewRoot()` as a SpanOption, causing the
 // newly-created Span to be a root span even if `ctx` contains a Span.
-func SpanStart(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (ctxWithSpan context.Context, newSpan trace.Span) {
-	// when we do unit test, we have not called main, the `tracer` is nil, which will cause panic
-	if tracer == nil {
-		InitStdoutTracerProvider()
-	}
+func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (ctxWithSpan context.Context, newSpan trace.Span) {
 	// nolint: forbidigo
-	ctxWithSpan, newSpan = tracer.Start(ctx, spanName, opts...)
+	ctxWithSpan, newSpan = otel.Tracer("github.com/ttys3/tracing").Start(ctx, spanName, opts...)
 	return
 }
 
@@ -194,4 +181,12 @@ func NewSpanFromB3(ctx context.Context, header http.Header) trace.Span {
 	ctx = propagator.Extract(ctx, propagation.HeaderCarrier(header))
 	sp := trace.SpanFromContext(ctx)
 	return sp
+}
+
+func Logger(ctx context.Context, keyValues ...interface{}) lgr.Logger {
+	kvs := []interface{}{
+		"trace_id", TraceID(ctx),
+	}
+	kvs = append(kvs, keyValues...)
+	return lgr.S().With(kvs...)
 }
