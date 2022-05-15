@@ -72,6 +72,9 @@ func InitOtlpTracerProvider(ctx context.Context, opts ...Option) (TpShutdownFunc
 		semconv.ServiceNameKey.String(opt.serviceName),
 		semconv.ServiceVersionKey.String(opt.serviceVersion),
 	}
+	if opt.deploymentEnvironment != "" {
+		attrs = append(attrs, semconv.DeploymentEnvironmentKey.String(opt.deploymentEnvironment))
+	}
 	attrs = append(attrs, opt.attributes...)
 
 	res, err := resource.New(ctx,

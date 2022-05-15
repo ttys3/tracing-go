@@ -7,13 +7,14 @@ import (
 )
 
 type options struct {
-	otelGrpcEndpoint string
-	serviceName      string
-	serviceVersion   string
-	durationFilter   bool
-	durationMin      time.Duration
-	durationMax      time.Duration
-	attributes       []attribute.KeyValue // keyValue attribute pairs
+	otelGrpcEndpoint      string
+	serviceName           string
+	serviceVersion        string
+	deploymentEnvironment string
+	durationFilter        bool
+	durationMin           time.Duration
+	durationMax           time.Duration
+	attributes            []attribute.KeyValue // keyValue attribute pairs
 }
 
 type setOptionFunc func(*options)
@@ -41,6 +42,12 @@ func WithSerivceName(name string) Option {
 func WithServiceVersion(version string) Option {
 	return setOptionFunc(func(o *options) {
 		o.serviceVersion = version
+	})
+}
+
+func WithDeploymentEnvironment(env string) Option {
+	return setOptionFunc(func(o *options) {
+		o.deploymentEnvironment = env
 	})
 }
 
