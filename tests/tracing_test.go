@@ -21,7 +21,7 @@ import (
 )
 
 func getTestOtlpEp() string {
-	ep := "otel-agent.observability.svc.cluster.local:4317"
+	ep := ""
 	if tmp := os.Getenv("OTEL_ENDPOINT"); tmp != "" {
 		ep = tmp
 	}
