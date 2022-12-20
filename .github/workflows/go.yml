@@ -11,7 +11,7 @@ on:
 
 jobs:
 
-  build:
+  build-test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -22,7 +22,7 @@ jobs:
         go-version: 1.19
 
     - name: Build
-      run: go build -v ./...
+      run: cd cmd/tracingman/ && go build -v .
 
     - name: Test
-      run: go test -v ./...
+      run: cd tests && go test -v ./...
