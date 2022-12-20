@@ -1,11 +1,14 @@
-package tracing
+package tests
 
 import (
+	"github.com/ttys3/tracing"
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,7 +21,7 @@ import (
 )
 
 func getTestOtlpEp() string {
-	ep := "tempo.service.dc1.consul:4317"
+	ep := "otel-agent.observability.svc.cluster.local:4317"
 	if tmp := os.Getenv("OTEL_ENDPOINT"); tmp != "" {
 		ep = tmp
 	}
@@ -27,37 +30,38 @@ func getTestOtlpEp() string {
 
 func TestSpanStartNoPanic(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
-	defer TracerProviderShutdown(ctx)
+	defer tracing.TracerProviderShutdown(ctx)
 
 	createTestSpan(ctx)
 }
 
 func TestOtlpSpanExport(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
-	defer TracerProviderShutdown(ctx)
+	defer tracing.TracerProviderShutdown(ctx)
 
 	ep := getTestOtlpEp()
 
-	InitOtlpTracerProvider(ctx,
-		WithOtelGrpcEndpoint(ep),
-		WithSerivceName("otel-tracing.test.TestOtlpSpanExport"),
-		WithServiceVersion("1.0.0"),
+	tracing.InitOtlpTracerProvider(ctx,
+		tracing.WithOtelGrpcEndpoint(ep),
+		tracing.WithSerivceName("otel-tracing.test.TestOtlpSpanExport"),
+		tracing.WithServiceVersion("1.0.0"),
 	)
+
 	createTestSpan(ctx)
 }
 
 func createTestSpan(ctx context.Context) {
-	ctx, span := Start(ctx, "test.MySpanName")
+	ctx, span := tracing.Start(ctx, "test.MySpanName")
 	defer span.End()
-	log := Logger(ctx)
-	log.Info("begin func")
+	log.Printf("begin func, trace_id=%v", tracing.TraceID(ctx))
+
 	func() {
-		ctx, span := Start(ctx, "test.MySubWork01")
+		ctx, span := tracing.Start(ctx, "test.MySubWork01")
 		defer span.End()
 		time.Sleep(time.Millisecond * 480)
 
 		func() {
-			_, span := Start(ctx, "test.MySubSubWork02")
+			_, span := tracing.Start(ctx, "test.MySubSubWork02")
 			defer span.End()
 			time.Sleep(time.Millisecond * 120)
 		}()
@@ -95,7 +99,7 @@ func TestNewSpanFromB3(t *testing.T) {
 		header.Set(v.Key, v.Val)
 	}
 
-	sp := NewSpanFromB3(ctx, header)
+	sp := tracing.NewSpanFromB3(ctx, header)
 	sp.SetName("hello")
 	sp.RecordError(fmt.Errorf("oops"))
 	sp.SetAttributes(attribute.String("hello", "tracing"))
@@ -104,13 +108,13 @@ func TestNewSpanFromB3(t *testing.T) {
 
 func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "key001", "val007")
-	defer TracerProviderShutdown(ctx)
+	defer tracing.TracerProviderShutdown(ctx)
 
 	// otel-collector.service.dc1.consul
-	InitOtlpTracerProvider(ctx,
-		WithOtelGrpcEndpoint(getTestOtlpEp()),
-		WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"),
-		WithServiceVersion("1.0.0"))
+	tracing.InitOtlpTracerProvider(ctx,
+		tracing.WithOtelGrpcEndpoint(getTestOtlpEp()),
+		tracing.WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"),
+		tracing.WithServiceVersion("1.0.0"))
 
 	u := uuid.Must(uuid.NewV4())
 	traceID := strings.ReplaceAll(u.String(), "-", "")
@@ -134,7 +138,7 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	sp := trace.SpanFromContext(ctx)
 	sp.SetName("SpanFromB3PropagatorHeader")
 	if !sp.IsRecording() {
-		_, sp = Start(ctx, "SpanFromB3PropagatorHeader")
+		_, sp = tracing.Start(ctx, "SpanFromB3PropagatorHeader")
 	}
 
 	sp.RecordError(fmt.Errorf("oops"))
@@ -142,4 +146,61 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	sp.SetAttributes(attribute.String("hello", "tracing"))
 	defer sp.End()
 	createTestSpan(ctx)
+}
+
+func TestWithoutCancel(t *testing.T) {
+	ctx := context.WithValue(context.Background(), "key001", "val007")
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	shutdown, err := tracing.InitStdoutTracerProvider()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		shutdown(context.Background())
+	})
+
+	ctx, span := tracing.StartWithoutCancel(ctx, "test.MySpanName")
+	defer span.End()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+	out:
+		for {
+			select {
+			case <-ctx.Done():
+				t.Logf("ctx.Done(), err=%v", ctx.Err())
+			case <-time.After(time.Second * 3):
+				t.Logf("begin tracing func, trace_id=%v", tracing.TraceID(ctx))
+
+				func() {
+					ctx, span := tracing.Start(ctx, "test.MySubWork01")
+					defer span.End()
+					time.Sleep(time.Millisecond * 480)
+
+					func() {
+						ctx, span := tracing.Start(ctx, "test.MySubSubWork02")
+						defer span.End()
+						t.Logf("ctx string=%v", ctx)
+						time.Sleep(time.Millisecond * 120)
+					}()
+				}()
+
+				t.Cleanup(func() {
+					tracing.TracerProviderShutdown(ctx)
+				})
+				break out
+			}
+		}
+	}()
+
+	go func() {
+		time.Sleep(time.Second * 2)
+		cancel()
+	}()
+
+	wg.Wait()
 }

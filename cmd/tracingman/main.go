@@ -4,20 +4,21 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/ttys3/tracing-go"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/ttys3/lgr"
-	"github.com/ttys3/tracing"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slog"
 )
 
 // see go.opentelemetry.io/contrib/propagators/b3@v1.4.0/b3_data_test.go
 // go.opentelemetry.io/contrib/propagators/b3@v1.4.0/b3_integration_test.go
 const (
-	spanIDStr  = "00f067aa0ba902b7"
+	spanIDStr = "00f067aa0ba902b7"
 )
 
 const (
@@ -37,18 +38,20 @@ var (
 )
 
 func main() {
-	flag.StringVar(&otelGrpcEndpoint, "e", "otel-collector.service.dc1.consul:4317", "opentelemetry collector grpc endpoint")
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr)))
+
+	flag.StringVar(&otelGrpcEndpoint, "e", "", "opentelemetry collector grpc endpoint, for example: tempo.service.dc1.consul:4317")
 	flag.StringVar(&rootSpanName, "n", "ThisIsMyRootSpanName", "root span name")
 	flag.StringVar(&serviceName, "s", "MyDemoService", "server name")
 	flag.BoolVar(&withB3, "b", false, "with b3 propagator")
 
 	flag.Parse()
 
-	lgr.S().Info("begin init tracer provider", "otel_grpc_endpoint", otelGrpcEndpoint, "service_name", serviceName, "root_span_name", rootSpanName)
+	slog.Info("begin init tracer provider", "otel_grpc_endpoint", otelGrpcEndpoint, "service_name", serviceName, "root_span_name", rootSpanName)
 
-	_, shutdownFunc, err := tracing.InitOtlpTracerProvider(context.Background(), 
-	tracing.WithOtelGrpcEndpoint(otelGrpcEndpoint), 
-	tracing.WithSerivceName(serviceName))
+	shutdownFunc, err := tracing.InitProvider(context.Background(),
+		tracing.WithOtelGrpcEndpoint(otelGrpcEndpoint),
+		tracing.WithSerivceName(serviceName))
 	defer shutdownFunc(context.Background())
 
 	if err != nil {
@@ -58,7 +61,7 @@ func main() {
 	var sp trace.Span
 	ctx := context.Background()
 	if withB3 {
-		lgr.S().Info("b3 propagator enabled")
+		slog.Info("b3 propagator enabled")
 		u := uuid.Must(uuid.NewV4())
 		traceID := strings.ReplaceAll(u.String(), "-", "")
 		// fmt.Printf("B3 traceID=%v\n", traceID)
@@ -76,11 +79,11 @@ func main() {
 		}
 		sp = tracing.NewSpanFromB3(ctx, header)
 		if !sp.IsRecording() {
-			lgr.S().Warn("parent is not recording span, create new")
-			ctx, sp = tracing.SpanStart(ctx, rootSpanName)
+			slog.Warn("parent is not recording span, create new")
+			ctx, sp = tracing.Start(ctx, rootSpanName)
 		}
 	} else {
-		ctx, sp = tracing.SpanStart(ctx, rootSpanName)
+		ctx, sp = tracing.Start(ctx, rootSpanName)
 	}
 	defer sp.End()
 

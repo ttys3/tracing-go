@@ -1,8 +1,6 @@
 package tracing
 
 import (
-	"time"
-
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -11,10 +9,8 @@ type options struct {
 	serviceName           string
 	serviceVersion        string
 	deploymentEnvironment string
-	durationFilter        bool
-	durationMin           time.Duration
-	durationMax           time.Duration
 	attributes            []attribute.KeyValue // keyValue attribute pairs
+	errorHandler          func(err error)
 }
 
 type setOptionFunc func(*options)
@@ -51,24 +47,6 @@ func WithDeploymentEnvironment(env string) Option {
 	})
 }
 
-func WithDurationFilter(enable bool) Option {
-	return setOptionFunc(func(o *options) {
-		o.durationFilter = enable
-	})
-}
-
-func WithDurationMin(min time.Duration) Option {
-	return setOptionFunc(func(o *options) {
-		o.durationMin = min
-	})
-}
-
-func WithDurationMax(max time.Duration) Option {
-	return setOptionFunc(func(o *options) {
-		o.durationMax = max
-	})
-}
-
 func WithAttributes(attrs []string) Option {
 	return setOptionFunc(func(o *options) {
 		if len(attrs) < 2 {
@@ -84,5 +62,11 @@ func WithAttributes(attrs []string) Option {
 			attributes = append(attributes, attribute.String(key, val))
 		}
 		o.attributes = attributes
+	})
+}
+
+func WithErrorHandler(handler func(err error)) Option {
+	return setOptionFunc(func(o *options) {
+		o.errorHandler = handler
 	})
 }
