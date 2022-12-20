@@ -32,9 +32,12 @@ type TpShutdownFunc func(ctx context.Context) error
 func InitProvider(ctx context.Context, opts ...Option) (TpShutdownFunc, error) {
 	opt := applayOptions(opts...)
 	if opt.otelGrpcEndpoint != "" {
-		return InitOtlpTracerProvider(ctx, opt)
+		return initOtlp(ctx, opt)
 	}
-	return InitStdoutTracerProvider()
+	if opt.stdoutTrace {
+		return initStdout()
+	}
+	return emptyTpShutdownFunc, nil
 }
 
 type otelErrorHandler struct {
@@ -65,8 +68,8 @@ func applayOptions(opts ...Option) *options {
 	return options
 }
 
-// InitOtlpTracerProvider init a tracer provider with otlp exporter with B3 propagator
-func InitOtlpTracerProvider(ctx context.Context, opt *options) (TpShutdownFunc, error) {
+// initOtlp init a tracer provider with otlp exporter with B3 propagator
+func initOtlp(ctx context.Context, opt *options) (TpShutdownFunc, error) {
 
 	otel.SetErrorHandler(&otelErrorHandler{handler: opt.errorHandler})
 
@@ -143,8 +146,8 @@ func InitOtlpTracerProvider(ctx context.Context, opt *options) (TpShutdownFunc, 
 	return tp.Shutdown, nil
 }
 
-// InitStdoutTracerProvider is only for unit tests
-func InitStdoutTracerProvider() (TpShutdownFunc, error) {
+// initStdout is only for unit tests
+func initStdout() (TpShutdownFunc, error) {
 	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
 	if err != nil {
 		log.Printf("new stdoutrace failed, err=%v", err)

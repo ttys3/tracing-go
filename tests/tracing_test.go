@@ -113,6 +113,7 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	// otel-collector.service.dc1.consul
 	tracing.InitProvider(ctx,
 		tracing.WithOtelGrpcEndpoint(getTestOtlpEp()),
+		tracing.WithStdoutTrace(),
 		tracing.WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"),
 		tracing.WithServiceVersion("1.0.0"))
 
@@ -153,7 +154,7 @@ func TestWithoutCancel(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	shutdown, err := tracing.InitStdoutTracerProvider()
+	shutdown, err := tracing.InitProvider(ctx, tracing.WithStdoutTrace())
 	if err != nil {
 		t.Fatal(err)
 	}

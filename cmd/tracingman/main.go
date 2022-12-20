@@ -51,6 +51,7 @@ func main() {
 
 	shutdownFunc, err := tracing.InitProvider(context.Background(),
 		tracing.WithOtelGrpcEndpoint(otelGrpcEndpoint),
+		tracing.WithStdoutTrace(),
 		tracing.WithSerivceName(serviceName))
 	defer shutdownFunc(context.Background())
 

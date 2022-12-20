@@ -11,6 +11,7 @@ type options struct {
 	deploymentEnvironment string
 	attributes            []attribute.KeyValue // keyValue attribute pairs
 	errorHandler          func(err error)
+	stdoutTrace           bool
 }
 
 type setOptionFunc func(*options)
@@ -68,5 +69,11 @@ func WithAttributes(attrs []string) Option {
 func WithErrorHandler(handler func(err error)) Option {
 	return setOptionFunc(func(o *options) {
 		o.errorHandler = handler
+	})
+}
+
+func WithStdoutTrace() Option {
+	return setOptionFunc(func(o *options) {
+		o.stdoutTrace = true
 	})
 }
