@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"github.com/ttys3/tracing"
 	"context"
 	"fmt"
+	"github.com/ttys3/tracing-go"
 	"log"
 	"net/http"
 	"os"
@@ -41,7 +41,7 @@ func TestOtlpSpanExport(t *testing.T) {
 
 	ep := getTestOtlpEp()
 
-	tracing.InitOtlpTracerProvider(ctx,
+	tracing.InitProvider(ctx,
 		tracing.WithOtelGrpcEndpoint(ep),
 		tracing.WithSerivceName("otel-tracing.test.TestOtlpSpanExport"),
 		tracing.WithServiceVersion("1.0.0"),
@@ -111,7 +111,7 @@ func TestSpanFromB3PropagatorHeader(t *testing.T) {
 	defer tracing.TracerProviderShutdown(ctx)
 
 	// otel-collector.service.dc1.consul
-	tracing.InitOtlpTracerProvider(ctx,
+	tracing.InitProvider(ctx,
 		tracing.WithOtelGrpcEndpoint(getTestOtlpEp()),
 		tracing.WithSerivceName("otel-tracing.test.TestSpanFromB3PropagatorHeader"),
 		tracing.WithServiceVersion("1.0.0"))

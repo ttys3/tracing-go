@@ -1,6 +1,6 @@
 module github.com/ttys3/tracing-go
 
-go 1.17
+go 1.19
 
 require (
 	go.opentelemetry.io/contrib/propagators/b3 v1.9.0
