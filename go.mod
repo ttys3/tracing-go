@@ -4,11 +4,11 @@ go 1.19
 
 require (
 	go.opentelemetry.io/contrib/propagators/b3 v1.12.0
-	go.opentelemetry.io/otel v1.11.2
+	go.opentelemetry.io/otel v1.14.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.11.2
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.11.2
 	go.opentelemetry.io/otel/sdk v1.11.2
-	go.opentelemetry.io/otel/trace v1.11.2
+	go.opentelemetry.io/otel/trace v1.14.0
 	golang.org/x/exp v0.0.0-20221217163422-3c43f8badb15
 )
 
