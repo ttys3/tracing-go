@@ -3,12 +3,13 @@ package tracing
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/slog"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slog"
 
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
@@ -18,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.18.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
