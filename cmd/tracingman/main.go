@@ -4,15 +4,16 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/ttys3/tracing-go"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/ttys3/tracing-go"
+
 	"github.com/gofrs/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slog"
 )
 
 // see go.opentelemetry.io/contrib/propagators/b3@v1.4.0/b3_data_test.go
@@ -38,7 +39,7 @@ var (
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
 	flag.StringVar(&otelGrpcEndpoint, "e", "", "opentelemetry collector grpc endpoint, for example: tempo.service.dc1.consul:4317")
 	flag.StringVar(&rootSpanName, "n", "ThisIsMyRootSpanName", "root span name")

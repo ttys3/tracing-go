@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slog"
 
 	"go.opentelemetry.io/contrib/propagators/b3"
 	"go.opentelemetry.io/otel"
@@ -71,7 +70,6 @@ func applayOptions(opts ...Option) *options {
 
 // initOtlp init a tracer provider with otlp exporter with B3 propagator
 func initOtlp(ctx context.Context, opt *options) (TpShutdownFunc, error) {
-
 	otel.SetErrorHandler(&otelErrorHandler{handler: opt.errorHandler})
 
 	expOptions := []otlptracegrpc.Option{
