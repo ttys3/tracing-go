@@ -5,7 +5,7 @@ go 1.20
 replace github.com/ttys3/tracing-go => ../
 
 require (
-	github.com/gofrs/uuid v4.3.1+incompatible
+	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/ttys3/tracing-go v0.0.0-00010101000000-000000000000
 	go.opentelemetry.io/contrib/propagators/b3 v1.18.0
 	go.opentelemetry.io/otel v1.17.0
