@@ -13,3 +13,7 @@ updates:
     directory: "/cmd/tracingman" # Location of package manifests
     schedule:
       interval: "weekly"
+  - package-ecosystem: "gomod" # See documentation for possible values
+    directory: "/tests" # Location of package manifests
+    schedule:
+      interval: "weekly"
